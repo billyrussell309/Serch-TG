@@ -1,0 +1,35 @@
+import os
+from telegram.ext import Updater, MessageHandler, Filters
+from clarifai.rest import ClarifaiApp
+from clarifai.rest import Image as ClImage
+
+# set up the Telegram bot and Clarifai API client
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+CLARIFAI_API_KEY = os.getenv("CLARIFAI_API_KEY")
+bot = Updater(BOT_TOKEN)
+app = ClarifaiApp(api_key=CLARIFAI_API_KEY)
+
+def photo_handler(update, context):
+    chat_id = update.effective_chat.id
+    message = update.message
+
+    # get the photo file and create a Clarifai image object
+    photo = message.photo[-1].get_file()
+    photo_file = photo.download()
+    image = ClImage(file_obj=open(photo_file, 'rb'))
+
+    # use Clarifai to analyze the image and extract information
+    model = app.models.get('general-v1.3')
+    response = model.predict([image])
+    concepts = response['outputs'][0]['data']['concepts']
+    info = [concept['name'] for concept in concepts]
+
+    # return the information to the user
+    message_text = "Here's what I found in the picture: " + ', '.join(info)
+    bot.send_message(chat_id=chat_id, text=message_text)
+
+# set up the message handler for photo messages
+bot.dispatcher.add_handler(MessageHandler(Filters.photo, photo_handler))
+
+# start the bot
+bot.start_polling()
